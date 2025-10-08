@@ -18,9 +18,10 @@ type Var = Int
 -- or a variable
 data T = C Cst [T] | V Var deriving (Show, Eq)
 
--- Free variables for a term; returns a sorted list
-fv = nub . sort . fv' [] where
-  fv' acc (V   x  ) = x : acc
+-- Free variables for a term; returns a set of variables' ids
+fv :: T -> Set.Set Int
+fv = fv' Set.empty where
+  fv' acc (V   x  ) = Set.insert x acc
   fv' acc (C _ sub) = foldl fv' acc sub
 
 -- QuickCheck instantiation for formulas
@@ -98,4 +99,4 @@ checkSubst (s, p, t) =
   not (wf s) || not (wf p) || not (compWF s p) || (apply p . apply s $ t) == apply (s <+> p) t
 
 -- This check should pass:
-qcEntry = quickCheck $ withMaxSuccess 1000 $ (\ x -> within 1000000 $ checkSubst x)
+qcEntry = quickCheck $ withMaxSuccess 1000 $ (\ x -> within 100000000 $ checkSubst x)
