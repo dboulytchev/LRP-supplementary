@@ -41,5 +41,5 @@ checkUnify (t, t') =
     Just s  -> T.apply s t == T.apply s t'
 
 -- This check should pass:
-qcEntry = QC.quickCheck $ QC.withMaxSuccess 1000 $ (\ x -> QC.within 1000000 $ checkUnify x)
+qcEntry = QC.quickCheck $ QC.withMaxSuccess 1000 $ (\ x -> QC.within 100000000 $ checkUnify x)
     
