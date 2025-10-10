@@ -13,18 +13,43 @@ import qualified Test.QuickCheck as QC
 -- non-variable binding; given a non-variable term returns
 -- this term
 walk :: T.Subst -> T.T -> T.T
-walk = undefined
+walk s v@(T.V var) = let res = T.apply s v in
+                     if res == v then
+                       v
+                     else
+                       walk s res
+walk s t           = t
 
 -- Occurs-check for terms: return true, if
 -- a variable occurs in the term
 occurs :: T.Var -> T.T -> Bool
-occurs = undefined
+occurs v t = v `elem` T.fv t
 
 -- Unification generic function. Takes an optional
 -- substitution and two terms and returns an optional
 -- MGU
 unify :: Maybe T.Subst -> T.T -> T.T -> Maybe T.Subst
-unify = undefined
+unify Nothing  t1 t2    = unify (Just T.empty) t1 t2
+unify js@(Just s) t1 t2 = let walks = (walk s t1, walk s t2) in
+                          case walks of
+                            (T.V l'   , T.V r')    -> if l' /= r' then 
+                                                        Just $ T.add s l' (T.V r')
+                                                      else 
+                                                        js
+                            (t        , T.V r')    -> if not (occurs r' t) then
+                                                        Just $ T.add s r' t
+                                                      else
+                                                        Nothing
+                            (T.V l'   , t)         -> if not (occurs l' t) then
+                                                        Just $ T.add s l' t
+                                                      else
+                                                        Nothing
+                            (T.C cl al, T.C cr ar) | cl /= cr               -> Nothing
+                                                   | length al /= length ar -> Nothing
+                                                   | otherwise              -> foldl fun (Just s) (zip al ar) where
+                                                                                 fun :: Maybe T.Subst -> (T.T, T.T) -> Maybe T.Subst
+                                                                                 fun Nothing  _         = Nothing
+                                                                                 fun js       (l, r)    = unify js l r
 
 -- An infix version of unification
 -- with empty substitution

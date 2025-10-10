@@ -4,8 +4,9 @@
 
 module Term where
 
-import qualified Data.Map  as Map
-import qualified Data.Set  as Set
+import qualified Data.Map   as Map
+import qualified Data.Maybe as Maybe
+import qualified Data.Set   as Set
 import Data.List
 import Test.QuickCheck
 import Debug.Trace
@@ -69,12 +70,14 @@ add s v t = Map.insert v t s
 
 -- Apply a substitution to a term
 apply :: Subst -> T -> T
-apply = undefined
+apply s (C cst cargs) = C cst (apply s <$> cargs)
+apply s v@(V var)     = Maybe.fromMaybe v (Map.lookup var s)
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
 occurs :: Subst -> Bool
-occurs = undefined
+occurs s = or $ (`Map.member` s) <$> concat (fv <$> (V <$> (fst <$> Map.toList s)))
+                                          
 
 -- Well-formedness: checks if a substitution does not contain
 -- circular bindings
@@ -86,11 +89,11 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = undefined
+s <+> p = Map.map (apply p) (Map.union s p)
 
--- A condition for substitution composition s <+> p: dom (s) \cup ran (p) = \emptyset
+-- A condition for substitution composition s <+> p: dom (s) \cap ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF = undefined
+compWF s p = and $ not <$> ((`Map.member` s) <$> concat (fv <$> (V <$> (fst <$> Map.toList p))))
   
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
