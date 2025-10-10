@@ -6,6 +6,7 @@ module Term where
 
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
+import qualified Data.Maybe as Maybe
 import Data.List
 import Test.QuickCheck
 import Debug.Trace
@@ -45,7 +46,7 @@ instance Arbitrary T where
              return $ C cst sub
     num   n   = (resize n arbitrary :: Gen (NonNegative Int)) >>= return . getNonNegative
     pos   n   = (resize n arbitrary :: Gen (Positive    Int)) >>= return . getPositive
-    split m n = iterate [] m n 
+    split = iterate []
     iterate acc rest 1 = return $ rest : acc
     iterate acc rest i = do k <- num rest
                             iterate (k : acc) (rest - k) (i-1) 
@@ -69,12 +70,45 @@ add s v t = Map.insert v t s
 
 -- Apply a substitution to a term
 apply :: Subst -> T -> T
-apply = undefined
+apply s (C c ts) = C c $ map (apply s) ts
+apply s (V v) = case Term.lookup s v of
+                  Just t -> t
+                  Nothing -> V v
+
+termContains :: Var -> T -> Bool
+termContains v (C c ts) = any (termContains v) ts
+termContains v (V v') = v == v'
+
+takeOne :: Subst -> Maybe ((Var, T), Subst)
+takeOne s = case Map.toList s of
+              (v, t) : others -> Just ((v, t), Map.fromList others)
+              [] -> Nothing
+
+type Fvs = Map.Map Var (Set.Set Var)
+
+applyFvsOnce :: Fvs -> Var -> Set.Set Var
+applyFvsOnce fvs v = Maybe.fromMaybe Set.empty (Map.lookup v fvs)
+
+applyFvs :: Fvs -> Set.Set Var -> Set.Set Var
+applyFvs fvs vars = Set.unions $ Set.map (applyFvsOnce fvs) vars
+
+selfSubst :: Fvs -> Fvs
+selfSubst s = Map.map (applyFvs s) s 
+
+ranFvs :: Fvs -> Set.Set Var
+ranFvs s = Set.unions $ Map.elems s
+
+ranClean :: Fvs -> Bool
+ranClean s = not $ Set.null $ Map.keysSet s `Set.intersection` ranFvs s
+
+occursCheck :: Fvs -> Int -> Bool
+occursCheck s 0 = ranClean s
+occursCheck s n = ranClean s || occursCheck (selfSubst s) (n - 1)
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
 occurs :: Subst -> Bool
-occurs = undefined
+occurs s = occursCheck (Map.map fv s) (Map.size s + 1)
 
 -- Well-formedness: checks if a substitution does not contain
 -- circular bindings
@@ -86,11 +120,14 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = undefined
+s <+> p = s `Map.union` p
+
+ran :: Subst -> Set.Set Int
+ran = Set.unions . Map.map fv
 
 -- A condition for substitution composition s <+> p: dom (s) \cup ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF = undefined
+compWF s p  = Set.null $ Map.keysSet s `Set.intersection` ran p 
   
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
