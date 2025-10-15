@@ -18,7 +18,7 @@ walk = undefined
 -- Occurs-check for terms: return true, if
 -- a variable occurs in the term
 occurs :: T.Var -> T.T -> Bool
-occurs = undefined
+occurs = T.occurs'
 
 -- Unification generic function. Takes an optional
 -- substitution and two terms and returns an optional
