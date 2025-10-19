@@ -6,23 +6,24 @@ module Term where
 
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List
+-- import Data.List
 import Test.QuickCheck
 import Debug.Trace
+import Data.Maybe (fromMaybe)
 
 -- Type synonyms for constructor and variable names
 type Cst = Int
 type Var = Int
+ -- deriving (Show, Eq, Ord, Arbitrary)
 
 -- A type for terms: either a constructor applied to subterms
 -- or a variable
-data T = C Cst [T] | V Var deriving (Show, Eq)
+data T = C Cst [T] | V Var deriving (Show, Eq, Ord)
 
 -- Free variables for a term; returns a set of variables' ids
-fv :: T -> Set.Set Int
-fv = fv' Set.empty where
-  fv' acc (V   x  ) = Set.insert x acc
-  fv' acc (C _ sub) = foldl fv' acc sub
+fv :: T -> Set.Set Var
+fv = fv' Set.empty where fv' acc (V   x  ) = Set.insert x acc
+                         fv' acc (C _ sub) = foldl fv' acc sub
 
 -- QuickCheck instantiation for formulas
 -- Don't know how to restrict the number of variables/constructors yet
@@ -61,7 +62,7 @@ empty = Map.empty
 
 -- Lookups a substitution
 lookup :: Subst -> Var -> Maybe T
-lookup = flip Map.lookup 
+lookup = flip Map.lookup
 
 -- Adds in a substitution
 add :: Subst -> Var -> T -> Subst
@@ -69,12 +70,20 @@ add s v t = Map.insert v t s
 
 -- Apply a substitution to a term
 apply :: Subst -> T -> T
-apply = undefined
+apply subst (C cst xs) = C cst $ map (apply subst) xs
+apply subst v@(V x) = fromMaybe v (Map.lookup x subst)
+
+-- Occurs-check for terms: return true, if
+-- a variable occurs in the term
+occurs' :: Var -> T -> Bool
+occurs' v term = v `elem` fv term
+-- occurs' v (C cst xs) = any (occurs' v) xs
+-- occurs' v (V x) = v == x
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
 occurs :: Subst -> Bool
-occurs = undefined
+occurs subst = any (uncurry occurs') $ Map.toList subst
 
 -- Well-formedness: checks if a substitution does not contain
 -- circular bindings
@@ -86,12 +95,12 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = undefined
+s <+> p = Map.union (Map.map (apply p) s) p
 
 -- A condition for substitution composition s <+> p: dom (s) \cup ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF = undefined
-  
+compWF s p = any (\x -> any (occurs' x) $ Map.elems p) $ Map.keys s
+
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
 checkSubst :: (Subst, Subst, T) -> Bool
