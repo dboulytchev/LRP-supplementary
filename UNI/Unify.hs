@@ -8,12 +8,17 @@ import Control.Monad
 import Data.List
 import qualified Term as T
 import qualified Test.QuickCheck as QC
+import qualified Data.Map
 
 -- Walk primitive: given a variable, lookups for the first
 -- non-variable binding; given a non-variable term returns
 -- this term
 walk :: T.Subst -> T.T -> T.T
-walk = undefined
+walk subst v@(T.V x) = case T.lookup subst x of
+                       Just v'@(T.V {}) -> walk subst v'
+                       Just c'@(T.C {}) -> c'
+                       Nothing -> v
+walk subst c@(T.C {}) = c
 
 -- Occurs-check for terms: return true, if
 -- a variable occurs in the term
@@ -24,7 +29,19 @@ occurs = T.occurs'
 -- substitution and two terms and returns an optional
 -- MGU
 unify :: Maybe T.Subst -> T.T -> T.T -> Maybe T.Subst
-unify = undefined
+unify Nothing t u = Nothing
+unify (Just subst) t u = let t' = walk subst t in
+                         let u' = walk subst u in
+                         case (t', u') of
+                           (T.V x, T.V y) | x == y -> Just subst
+                           (T.V x, term) | not $ occurs x term ->
+                             Just $ T.add subst x term
+                           (term, T.V y) | not $ occurs y term ->
+                             Just $ T.add subst y term
+                           (T.C xCst xs, T.C yCst ys) | xCst == yCst &&
+                                                        length xs == length ys ->
+                             foldl (\s (x, y) -> unify s x y) (Just subst) (zip xs ys)
+                           _ -> Nothing
 
 -- An infix version of unification
 -- with empty substitution
@@ -42,4 +59,4 @@ checkUnify (t, t') =
 
 -- This check should pass:
 qcEntry = QC.quickCheck $ QC.withMaxSuccess 1000 $ (\ x -> QC.within 100000000 $ checkUnify x)
-    
+

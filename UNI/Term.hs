@@ -22,9 +22,8 @@ data T = C Cst [T] | V Var deriving (Show, Eq, Ord)
 
 -- Free variables for a term; returns a set of variables' ids
 fv :: T -> Set.Set Var
-fv = fv' Set.empty where
-  fv' acc (V   x  ) = Set.insert x acc
-  fv' acc (C _ sub) = foldl fv' acc sub
+fv = fv' Set.empty where fv' acc (V   x  ) = Set.insert x acc
+                         fv' acc (C _ sub) = foldl fv' acc sub
 
 -- QuickCheck instantiation for formulas
 -- Don't know how to restrict the number of variables/constructors yet
@@ -77,8 +76,9 @@ apply subst v@(V x) = fromMaybe v (Map.lookup x subst)
 -- Occurs-check for terms: return true, if
 -- a variable occurs in the term
 occurs' :: Var -> T -> Bool
-occurs' v (C cst xs) = any (occurs' v) xs
-occurs' v (V x) = v == x
+occurs' v term = v `elem` fv term
+-- occurs' v (C cst xs) = any (occurs' v) xs
+-- occurs' v (V x) = v == x
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
@@ -95,11 +95,11 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = Map.union (Map.map (apply p) s) p -- TODO: check
+s <+> p = Map.union (Map.map (apply p) s) p
 
 -- A condition for substitution composition s <+> p: dom (s) \cup ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF s p = any (\x -> any (occurs' x) $ Map.elems p) $ Map.keys s -- TODO: check
+compWF s p = any (\x -> any (occurs' x) $ Map.elems p) $ Map.keys s
 
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
