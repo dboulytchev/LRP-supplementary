@@ -21,10 +21,13 @@ occurs :: T.Var -> T.T -> Bool
 occurs = undefined
 
 -- Unification generic function. Takes an optional
--- substitution and two terms and returns an optional
--- MGU
-unify :: Maybe T.Subst -> T.T -> T.T -> Maybe T.Subst
-unify = undefined
+-- substitution and two unifiable structures and
+-- returns an MGU if exists
+class Unifiable a where
+  unify :: Maybe T.Subst -> a -> a -> Maybe T.Subst
+
+instance Unifiable T.T where
+  unify s t1 t2 = undefined
 
 -- An infix version of unification
 -- with empty substitution

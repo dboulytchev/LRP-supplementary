@@ -4,8 +4,8 @@
 
 module Term where
 
-import qualified Data.Map  as Map
-import qualified Data.Set  as Set
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.List
 import Test.QuickCheck
 import Debug.Trace
@@ -18,11 +18,15 @@ type Var = Int
 -- or a variable
 data T = C Cst [T] | V Var deriving (Show, Eq)
 
--- Free variables for a term; returns a set of variables' ids
+-- A class type for converting data structures to/from
+-- terms
+class Term a where
+   toTerm   :: a -> T
+   fromTerm :: T -> a
+  
+-- Free variables for a term; returns a sorted list
 fv :: T -> Set.Set Int
-fv = fv' Set.empty where
-  fv' acc (V   x  ) = Set.insert x acc
-  fv' acc (C _ sub) = foldl fv' acc sub
+fv = undefined
 
 -- QuickCheck instantiation for formulas
 -- Don't know how to restrict the number of variables/constructors yet
@@ -51,8 +55,8 @@ instance Arbitrary T where
                             iterate (k : acc) (rest - k) (i-1) 
 
 -- A type for a substitution: a (partial) map from
--- variable names to terms. Note, this represents not
--- neccessarily idempotent substitution
+-- variable names to terms. Note, this not neccessarily  
+-- represents an idempotent substitution
 type Subst = Map.Map Var T
 
 -- Empty substitution
@@ -64,12 +68,16 @@ lookup :: Subst -> Var -> Maybe T
 lookup = flip Map.lookup 
 
 -- Adds in a substitution
-add :: Subst -> Var -> T -> Subst
-add s v t = Map.insert v t s
+put :: Subst -> Var -> T -> Subst
+put s v t = Map.insert v t s
+
+-- A class of substitutable types
+class Substitutable a where
+  apply :: Subst -> a -> a
 
 -- Apply a substitution to a term
-apply :: Subst -> T -> T
-apply = undefined
+instance Substitutable T where
+  apply s t = undefined
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
@@ -90,8 +98,8 @@ s <+> p = undefined
 
 -- A condition for substitution composition s <+> p: dom (s) \cup ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF = undefined
-  
+compWF s p = undefined
+
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
 checkSubst :: (Subst, Subst, T) -> Bool
