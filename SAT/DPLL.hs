@@ -8,6 +8,7 @@
 import System.Random
 import Control.Exception
 import Data.List
+import Data.Maybe as Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Test.QuickCheck
@@ -48,7 +49,23 @@ withUnSat action = catch action $ (\ (_ :: UnSat) -> return [])
 -- unit propagation can result in an inconsistent assignment which has to be detected and
 -- handled properly by throwing the UnSat exception.
 propagateUnitLiterals :: CNF -> IO (CNF, Val)
-propagateUnitLiterals f = undefined
+propagateUnitLiterals f = do 
+  let ls = Set.fromList $ concat $ filter ((== 1) . length) f
+  if length ls /= length (Set.fromList (abs <$> Set.toList ls)) then
+    throw UnSat
+  else do
+    let newFSat  = filter ([] /=) ((\l -> if 0 < length (Set.fromList l `Set.intersection` ls) then [] else l) <$> f)
+    let newF = (\l -> Set.toList (Set.fromList l `Set.difference` Set.fromList (negate <$> Set.toList ls))) <$> newFSat
+    if newF == f then
+      return (newF, ls)
+    else if [] `notElem` newF then do
+      (reduced, assn) <- propagateUnitLiterals newF
+      if [] `notElem` reduced then
+        return (reduced, ls `Set.union` assn)
+      else 
+        throw UnSat
+    else 
+      throw UnSat
 
 -- Pure literal propagation. Takes a formula, returns reduced formula and partial
 -- assignment.
@@ -56,7 +73,9 @@ propagateUnitLiterals f = undefined
 -- A pure literal can be chosen with no conflicts and all containing it clauses can
 -- be removed.
 propagatePureLiterals :: CNF -> (CNF, Val)
-propagatePureLiterals f = undefined
+propagatePureLiterals f = case find (\v -> Maybe.isNothing $ find (== (-v)) $ concat f) (concat f) of
+                            Just v  -> let res = propagatePureLiterals (filter (\l -> v `notElem` l) f) in (fst res, Set.insert v $ snd res)
+                            Nothing -> (f, mempty)
 
 -- Subsumed clauses elimination. Takes a formula, returns a reduced formula.
 -- A clause c is subsumed by c' iff all literals from c' occur in c (in other
@@ -64,7 +83,9 @@ propagatePureLiterals f = undefined
 -- also is satisfied, and, thus, can be removed. Subsumed clauses elimination
 -- can not lead to conflicts.
 eliminateSubsumedClauses :: CNF -> CNF
-eliminateSubsumedClauses f = undefined
+eliminateSubsumedClauses f = case find (\l -> 1 < length (filter (\x -> 0 == length (Set.fromList l `Set.difference` Set.fromList x)) f)) f of
+                               Just l  -> eliminateSubsumedClauses $ l : filter (\x -> 0 /= length (Set.fromList l `Set.difference` Set.fromList x)) f 
+                               Nothing -> f
 
 -- Chooses a random (well, pseudo-random) literal of the formula for
 -- the branching. Returns a pair of literals for the same variable
