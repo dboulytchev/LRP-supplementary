@@ -26,11 +26,7 @@ pick n s =
 
 instance Applicative Stream where
   pure      = flip Mature $ Nil
-  Nil <*> _ = Nil
-  _ <*> Nil = Nil
-  Mature a as <*> Mature b bs = Mature (a b) $ as <*> bs
-  Immature as <*> bs          = Immature $ as <*> bs
-  as <*> Immature bs          = Immature $ as <*> bs
+  (<*>) = ap
 
 instance Alternative Stream where
   empty              = Nil
@@ -81,6 +77,7 @@ delay f s = Immature $ f s
 initial = (T.empty, 1000)
 peep x (s, _) = map (T.apply s) x
 run peeper goal = map peeper $ pick (-1) $ goal initial
+run_n n peeper goal = map peeper $ pick n $ goal initial
 
 ------------------------------------------
 --- Some relations for natural numbers ---
@@ -109,6 +106,15 @@ add x y z = delay $
     x === s x' &&&
     z === s z' &&&
     add x' y z'
+  ))
+
+mul x y z = delay $
+  y === o &&& z === o |||
+  call_fresh(\ t ->
+  call_fresh(\ y' ->
+    y === s y' &&&
+    add x t z  &&&
+    mul x y' t
   ))
 
 insert x xs ys = delay $
@@ -142,9 +148,12 @@ zero = o
 one = s zero
 two = s one 
 three = s two
+six = s $ s $ s three
 
 list3102 = c three $ c one $ c zero $ c two e
 list0223 = c zero $ c two $ c two $ c three e
+
+check_mul_3 = run_n 4 (peep [x, y]) (mul x y six) --- can find 4 solutions
 
 sort0 = run (peep [x]) (sort e x)
 sort1 = run (peep [x]) (sort list3102 x)

@@ -119,25 +119,46 @@ evalRec p (((h :- b) : as, g : gs, s), ts, v) = let (h' :- b', v') = rename (h :
 x = V 0
 y = V 1
 z = V 2
+t = V 3
+x' = V 4
+xs' = V 5
+ys = V 6
+xs = V 7
 
 --- Terms
-o   = C 0 []
-s t = C 1 [t]
+o         = C 0 []
+s t       = C 1 [t]
+e         = C 2 []
+c (t, ts) = C 3 [t, ts]
+
+-- Peano numbers shortcut
+num :: Int -> T
+num 0 = o
+num n = s $ num (n - 1)
 
 --- Predicates
 add (x, y, z) = (0, [x, y, z])
 mul (x, y, z) = (1, [x, y, z])
 lt  (x, y)    = (2, [x, y])
 le  (x, y)    = (3, [x, y])
+insert (x, y, z) = (4, [x, y, z])
+sort (x, y) = (5, [x, y])
 
 --- Specifications
-peano = [add (o, x, x) :- [], add (s(x), y, s(z)) :- [add (x, y, z)]]
+peano_add = [add (o, x, x) :- [], add (s(x), y, s(z)) :- [add (x, y, z)]]
+peano_cmp = [le (x, y) :- [add (x, z, y)], lt (x, s(y)) :- [le (x, y)]]
+peano_mul = [mul (x, o, o) :- [], mul (x, s(y), z) :- [add (x, t, z), mul (x, y, t)]]
+
+peano = peano_add ++ peano_cmp ++ peano_mul
+
+list_sort = [
+  insert (x, e, c(x, e))                        :- [],
+  insert (x, c (x', xs'), c (x, (c (x', xs')))) :- [le (x, x')],
+  insert (x, c (x', xs'), c (x', ys))           :- [le (x', x), insert (x, xs', ys)],
+  sort (e, e)                                   :- [],
+  sort (c (x, xs), ys)                          :- [sort (xs, xs'), insert (x, xs', ys)]];
 
 --- Samples
-triv0 = let h = eval peano [add (o, x, x)] in h >>= \hh -> show $ apply hh x
-triv1 = let h = eval peano [add (o, x, y)] in h >>= \hh -> show $ apply hh x
-triv2 = let h = eval peano [add (s(o), o, x)] in h >>= \hh -> show $ apply hh x
-
 s0 = case eval peano [add (s(o), s(o), x)] of
        []    -> "error: should find a solution"
        h : _ -> "solution: " ++ (show $ apply h x)
@@ -151,3 +172,31 @@ s2 = case eval peano [add (x, y, s (s (o)))] of
        h1 : h2 : h3 : _ -> "solutions: x = " ++ (show $ apply h1 x) ++ ", y = " ++ (show $ apply h1 y) ++ "\n" ++
                            "           x = " ++ (show $ apply h2 x) ++ ", y = " ++ (show $ apply h2 y) ++ "\n" ++
                            "           x = " ++ (show $ apply h3 x) ++ ", y = " ++ (show $ apply h3 y) ++ "\n"
+
+check_mul_1 = case eval peano [ mul (num 2, num 3, x) ] of
+                []    -> "error: should find a solution"
+                h : _ -> "solution: " ++ (show $ apply h x)
+
+check_mul_2 = case eval peano [ mul (num 2, x, num 6) ] of
+                []    -> "error: should find a solution"
+                h : _ -> "solution: " ++ (show $ apply h x)
+
+check_mul_3 = case eval peano [ mul (x, y, num 6) ] of -- won't found all 4 solutions
+                 h1 : h2 : h3 : h4 : _ -> "found 4 solutions"
+                 _ -> "error: haven't found all solutions"
+
+check_cmp_1 = case eval peano [ le (num 2, num 6) ] of
+                []    -> "error: should find a solution"
+                h : _ -> "ok"
+
+check_cmp_2 = case eval peano [ lt (num 2, num 2) ] of
+                []    -> "ok"
+                h : _ -> "error: found some proof"
+
+check_cmp_3 = case eval peano [ lt (x, num 2) ] of
+                []           -> "error: shoud find a solution"
+                h1 : h2 :  _ -> "solutions: " ++ (show $ apply h1 x) ++ "\n" ++ (show $ apply h2 x)
+
+check_sort = case eval (list_sort ++ peano) [ sort (c(s(s(s(o))), c(s(o), c(o, c(s(s(o)), e)))), x) ] of
+                []    -> "error: should find a solution"
+                h : _ -> "solution: " ++ (show $ apply h x)
