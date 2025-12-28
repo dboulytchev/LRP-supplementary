@@ -7,6 +7,7 @@ module Term where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.List
+import Data.Maybe
 import Test.QuickCheck
 import Debug.Trace
 
@@ -26,7 +27,9 @@ class Term a where
   
 -- Free variables for a term; returns a sorted list
 fv :: T -> Set.Set Int
-fv = undefined
+fv = fv' Set.empty where
+  fv' acc (V   x  ) = Set.insert x acc
+  fv' acc (C _ sub) = foldl fv' acc sub
 
 -- QuickCheck instantiation for formulas
 -- Don't know how to restrict the number of variables/constructors yet
@@ -77,13 +80,14 @@ class Substitutable a where
 
 -- Apply a substitution to a term
 instance Substitutable T where
-  apply s t = undefined
+  apply s (V v) = fromMaybe (V v) $ fmap (apply s) $ Term.lookup s v
+  apply s (C c vs) = C c $ fmap (apply s) vs
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
-occurs :: Subst -> Bool
-occurs = undefined
 
+occurs :: Subst -> Bool
+occurs s = or $ fmap (\(v, t) -> Set.member v $ fv t) $ Map.assocs s
 -- Well-formedness: checks if a substitution does not contain
 -- circular bindings
 wf :: Subst -> Bool
@@ -94,11 +98,12 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = undefined
+s <+> p = let dlu t = apply p $ apply s $ V t 
+          in foldl (\s v -> put s v $ dlu v) empty $ (Map.keys s) ++ (Map.keys p)
 
 -- A condition for substitution composition s <+> p: dom (s) \cup ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF s p = undefined
+compWF s p = Set.disjoint (Set.fromList (Map.keys s)) (Set.unions $ fmap fv $ Map.elems p)
 
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
