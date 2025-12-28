@@ -6,6 +6,8 @@ module Unify where
 
 import Control.Monad
 import Data.List
+import Data.Map
+import Data.Set
 import qualified Term as T
 import qualified Test.QuickCheck as QC
 
@@ -13,12 +15,22 @@ import qualified Test.QuickCheck as QC
 -- non-variable binding; given a non-variable term returns
 -- this term
 walk :: T.Subst -> T.T -> T.T
-walk = undefined
+walk s (T.C x y) = T.C x y
+walk s (T.V v) = if elem v $ Data.Map.keys s then walk s $ T.apply s $ T.V v else T.V v
 
 -- Occurs-check for terms: return true, if
 -- a variable occurs in the term
 occurs :: T.Var -> T.T -> Bool
-occurs = undefined
+occurs v t = Data.Set.member v $ T.fv t
+
+msbs :: Maybe T.Subst -> Maybe T.Subst -> Maybe T.Subst
+msbs _ Nothing = Nothing
+msbs Nothing _ = Nothing
+msbs (Just l) (Just r) = let cmp = l T.<+> r in 
+  if T.wf cmp then Just cmp else Nothing
+
+solo :: T.Var -> T.T -> Maybe T.Subst 
+solo v t = if occurs v t then Nothing else Just $ T.put T.empty v t
 
 -- Unification generic function. Takes an optional
 -- substitution and two unifiable structures and
@@ -27,7 +39,15 @@ class Unifiable a where
   unify :: Maybe T.Subst -> a -> a -> Maybe T.Subst
 
 instance Unifiable T.T where
-  unify s t1 t2 = undefined
+  unify Nothing _ _ = Nothing
+  unify (Just s) l r = case (walk s l, walk s r) of
+                     (T.V vl, T.V vr) -> if vl == vr then Just s else Just $ T.put s vl (T.V vr)
+                     (T.V vl, c) -> msbs (solo vl c) $ Just s
+                     (c, T.V vr) -> msbs (solo vr c) $ Just s
+                     (T.C cl vls, T.C cr vrs) -> 
+                        if cl /= cr || length vls /= length vrs 
+                        then Nothing 
+                        else Data.List.foldl (uncurry . unify) (Just s) $ zip vls vrs
 
 -- An infix version of unification
 -- with empty substitution

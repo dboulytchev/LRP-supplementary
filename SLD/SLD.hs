@@ -29,19 +29,34 @@ data H = A :- [A] deriving Show
 -- Program
 type P = [H]
 
+instance Term.Term A where
+  toTerm (p, ts) = Term.C p ts
+  fromTerm (C p ts) = (p, ts)
+  fromTerm _ = undefined
+
+dapp :: Subst -> T -> T
+dapp s t = case Unify.walk s t of C cst ts -> C cst $ fmap (dapp s) ts
+                                  V v      -> V v
+
+prep :: Subst -> Subst 
+prep s = foldl (\cs v -> put cs v (dapp s $ V v)) Map.empty $ Map.keys s
+
 -- Unification for atomic formulas
 instance Unifiable A where
-  unify = undefined
-  
+  unify s l r = unify s (toTerm l) (toTerm r)
+
+(===) :: A -> A -> Maybe Subst
+(===) = unify $ Just Term.empty
+
 -- Substitution application to atomic formulas
 instance Substitutable A where
-  apply = undefined
+  apply s (p, ts) = (p, map (dapp s) ts)
 
 -- State
 --   1. A triple
 --      1. a tail of a program to match against
---	2. current goal
---	3. current substitution
+--	    2. current goal
+--	    3. current substitution
 --   2. A stack of triplets as in the previous item
 --   3. An index of first fresh variable
 type Triplet = (P, [A], Subst)
@@ -85,8 +100,16 @@ eval :: P -> [A] -> [Subst]
 eval p g = evalRec p $ initState p g
 
 -- Recursive evalutor
-evalRec :: P -> State -> [Subst] 
-evalRec p ((hs, g, subst), stack, fresh) = undefined
+evalRec :: P -> State -> [Subst]
+-- evalRec p ((hs, g, subst), stack, fresh) = undefined
+evalRec _ ((_, [], s), [], _)  = [prep s]
+evalRec _ (([], _, s), [], _)  = []
+evalRec p ((_, [], s), t : ts, v) = prep s : evalRec p (t, ts, v)
+evalRec p (([], _, s), t : ts, v) = evalRec p (t, ts, v)
+evalRec p (((h :- b) : as, g : gs, s), ts, v) = let (h' :- b', v') = rename (h :- b) v in
+  case unify (Just s) h' g of Nothing -> evalRec p ((as, g : gs, s), ts, v')
+                              Just s' -> evalRec p ((p, b' ++ gs, s'), (as, g : gs, s) : ts, v')
+-- evalRec _ _ = undefined
 
 ------------------------------------------
 --- Some relations for natural numbers ---
@@ -111,6 +134,10 @@ le  (x, y)    = (3, [x, y])
 peano = [add (o, x, x) :- [], add (s(x), y, s(z)) :- [add (x, y, z)]]
 
 --- Samples
+triv0 = let h = eval peano [add (o, x, x)] in h >>= \hh -> show $ apply hh x
+triv1 = let h = eval peano [add (o, x, y)] in h >>= \hh -> show $ apply hh x
+triv2 = let h = eval peano [add (s(o), o, x)] in h >>= \hh -> show $ apply hh x
+
 s0 = case eval peano [add (s(o), s(o), x)] of
        []    -> "error: should find a solution"
        h : _ -> "solution: " ++ (show $ apply h x)
