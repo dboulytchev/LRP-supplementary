@@ -143,6 +143,7 @@ lt  (x, y)    = (2, [x, y])
 le  (x, y)    = (3, [x, y])
 insert (x, y, z) = (4, [x, y, z])
 sort (x, y) = (5, [x, y])
+dummy x = (6, [x])
 
 --- Specifications
 peano_add = [add (o, x, x) :- [], add (s(x), y, s(z)) :- [add (x, y, z)]]
@@ -156,7 +157,9 @@ list_sort = [
   insert (x, c (x', xs'), c (x, (c (x', xs')))) :- [le (x, x')],
   insert (x, c (x', xs'), c (x', ys))           :- [le (x', x), insert (x, xs', ys)],
   sort (e, e)                                   :- [],
-  sort (c (x, xs), ys)                          :- [sort (xs, xs'), insert (x, xs', ys)]];
+  sort (c (x, xs), ys)                          :- [sort (xs, xs'), insert (x, xs', ys)]]
+
+dummy_spec = [ dummy (x) :- [dummy (x)], dummy (x) :- []]
 
 --- Samples
 s0 = case eval peano [add (s(o), s(o), x)] of
@@ -200,3 +203,7 @@ check_cmp_3 = case eval peano [ lt (x, num 2) ] of
 check_sort = case eval (list_sort ++ peano) [ sort (c(s(s(s(o))), c(s(o), c(o, c(s(s(o)), e)))), x) ] of
                 []    -> "error: should find a solution"
                 h : _ -> "solution: " ++ (show $ apply h x)
+
+check_dummy = case eval dummy_spec [ dummy (o) ] of  -- won't find a solution
+                []    -> "error: should find a solution"
+                h : _ -> "foud solution"

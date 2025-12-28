@@ -140,6 +140,9 @@ sort xs ys = delay $
     insert x' ys' ys
   )))
 
+dummy x = delay $
+  dummy x ||| x === x
+
 s0 = run (peep [x])    (add (s o) (s o) x)
 s1 = run (peep [x])    (add x (s o) (s (s o)))
 s2 = run (peep [x, y]) (add x y (s (s o)))
@@ -154,6 +157,7 @@ list3102 = c three $ c one $ c zero $ c two e
 list0223 = c zero $ c two $ c two $ c three e
 
 check_mul_3 = run_n 4 (peep [x, y]) (mul x y six) --- can find 4 solutions
+check_dummy = run_n 1 (peep [x]) (dummy x)        --- can find 1 solution
 
 sort0 = run (peep [x]) (sort e x)
 sort1 = run (peep [x]) (sort list3102 x)
