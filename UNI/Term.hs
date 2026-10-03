@@ -96,7 +96,7 @@ infixl 6 <+>
 (<+>) :: Subst -> Subst -> Subst
 s <+> p = undefined
 
--- A condition for substitution composition s <+> p: dom (s) \cup ran (p) = \emptyset
+-- A condition for substitution composition s <+> p: dom (s) \cap ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
 compWF s p = undefined
 
