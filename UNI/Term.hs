@@ -107,4 +107,4 @@ checkSubst (s, p, t) =
   not (wf s) || not (wf p) || not (compWF s p) || (apply p . apply s $ t) == apply (s <+> p) t
 
 -- This check should pass:
-qcEntry = quickCheck $ withMaxSuccess 1000 $ (\ x -> within 100000000 $ checkSubst x)
+qcEntry = quickCheck $ withNumTests 1000 $ (\ x -> within 100000000 $ checkSubst x)
