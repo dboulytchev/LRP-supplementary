@@ -26,7 +26,13 @@ class Term a where
   
 -- Free variables for a term; returns a sorted list
 fv :: T -> Set.Set Int
-fv = undefined
+fv t0 = go [t0] Set.empty
+  where
+    go :: [T] -> Set.Set Var -> Set.Set Var
+    go []        !acc = acc
+    go (t : ts)  !acc = case t of
+      V v       -> go ts (Set.insert v acc)
+      C _ subts -> go (subts ++ ts) acc
 
 -- QuickCheck instantiation for formulas
 -- Don't know how to restrict the number of variables/constructors yet
@@ -75,14 +81,53 @@ put s v t = Map.insert v t s
 class Substitutable a where
   apply :: Subst -> a -> a
 
+data Work
+  = Process T
+  | Build Cst Int
+
 -- Apply a substitution to a term
 instance Substitutable T where
-  apply s t = undefined
+  apply s t = go [Process t] []
+    where
+      go :: [Work] -> [T] -> T
+      go []        (r : _) = r
+      go (w : ws)  !results = case w of
+        Process (V v) ->
+          case Term.lookup s v of
+            Just t' -> go ws (t' : results)
+            Nothing -> go ws (V v : results)
+        Process (C cst subs) ->
+          go (map Process (reverse subs) ++ (Build cst (length subs) : ws))
+              results
+        Build cst n ->
+          let (children, rest) = splitAt n results
+          in go ws (C cst children : rest)
 
 -- Occurs check: checks if a substitution contains a circular
--- binding    
+-- binding
+
+data Task = Enter Var | Exit Var
+
 occurs :: Subst -> Bool
-occurs = undefined
+occurs s = go initialStack Set.empty Set.empty
+  where
+    initialStack = [Enter v | v <- Map.keys s]
+    go :: [Task] -> Set.Set Var -> Set.Set Var -> Bool
+    go [] !_ !_ = False
+    go (task : rest) !visiting !done = case task of
+      Enter v
+        | v `Set.member` visiting -> True
+        | v `Set.member` done     -> go rest visiting done
+        | otherwise ->
+            case Term.lookup s v of
+              Nothing    -> go rest visiting (Set.insert v done)
+              Just (V v) -> go rest visiting (Set.insert v done)
+              Just t     ->
+                let deps     = Set.toList (fv t)
+                    newStack = map Enter deps ++ [Exit v] ++ rest
+                in go newStack (Set.insert v visiting) done
+      Exit v ->
+        go rest (Set.delete v visiting) (Set.insert v done)
 
 -- Well-formedness: checks if a substitution does not contain
 -- circular bindings
@@ -94,11 +139,16 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = undefined
+s <+> p = foldr step p (Map.toList s)
+  where
+    step (v, t) acc = put acc v (apply p t)
 
 -- A condition for substitution composition s <+> p: dom (s) \cap ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF s p = undefined
+compWF s p = Set.null $
+    Set.intersection
+      (Map.keysSet s)
+      (Set.unions (map fv (Map.elems p)))
 
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
