@@ -26,7 +26,9 @@ class Term a where
   
 -- Free variables for a term; returns a sorted list
 fv :: T -> Set.Set Int
-fv = undefined
+fv (C cst arr) = Set.unions $ fv <$> arr
+fv (V var) = Set.singleton var
+
 
 -- QuickCheck instantiation for formulas
 -- Don't know how to restrict the number of variables/constructors yet
@@ -71,18 +73,23 @@ lookup = flip Map.lookup
 put :: Subst -> Var -> T -> Subst
 put s v t = Map.insert v t s
 
+open_maybe_term :: Var -> Maybe T -> T
+open_maybe_term x (Just y) = y
+open_maybe_term x Nothing = V x
+
 -- A class of substitutable types
 class Substitutable a where
   apply :: Subst -> a -> a
 
 -- Apply a substitution to a term
 instance Substitutable T where
-  apply s t = undefined
+  apply s (C cst arr) = C cst $ map (apply s) arr
+  apply s (V var) = open_maybe_term var $ Term.lookup s var
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
 occurs :: Subst -> Bool
-occurs = undefined
+occurs s = not $ Set.disjoint (Map.keysSet s) $ Set.unions $ fv <$> Map.elems s
 
 -- Well-formedness: checks if a substitution does not contain
 -- circular bindings
@@ -94,11 +101,11 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = undefined
+s <+> p = Map.union (apply p <$> s) p
 
 -- A condition for substitution composition s <+> p: dom (s) \cap ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF s p = undefined
+compWF s p = Set.disjoint (Map.keysSet s) (Set.unions (map fv (Map.elems p)))
 
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)
