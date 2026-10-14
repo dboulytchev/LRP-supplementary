@@ -31,11 +31,19 @@ type P = [H]
 
 -- Unification for atomic formulas
 instance Unifiable A where
-  unify = undefined
+  unify Nothing _ _ = Nothing
+  unify (Just s) (p, ts) (q, us)
+    | p /= q = Nothing
+    | length ts /= length us = Nothing
+    | otherwise =
+        Monad.foldM
+          (\s' (t, u) -> unify (Just s') t u)
+          s
+          (zip ts us)
   
 -- Substitution application to atomic formulas
 instance Substitutable A where
-  apply = undefined
+  apply s (p, ts) = (p, (apply s) <$> ts)
 
 -- State
 --   1. A triple
@@ -86,7 +94,18 @@ eval p g = evalRec p $ initState p g
 
 -- Recursive evalutor
 evalRec :: P -> State -> [Subst] 
-evalRec p ((hs, g, subst), stack, fresh) = undefined
+evalRec p ((hs, g, subst), stack, fresh) = go ((hs, g, subst), stack, fresh) []
+  where go state (!acc) = case state of
+                            ((_, [], subst), [], _) -> subst : acc
+                            ((_, [], subst), (hs, g, subst') : stack', fresh) -> go ((hs, g, subst'), stack', fresh) (subst : acc)
+                            (([], (_ : _), _), [], _) -> acc
+                            (([], (_ : _), _), (hs, g, subst) : stack', fresh) -> go ((hs, g, subst), stack', fresh) (acc)
+                            ((h : hs, g@(ghead : gtail), subst), stack, fresh) ->
+                              let (h'@(head :- htail), fresh') = rename h fresh in
+                                case unify (Just Term.empty) head ghead of
+                                  Nothing -> go ((hs, g, subst), stack, fresh) acc
+                                  Just newSubst ->
+                                    go ((p, apply newSubst <$> (htail ++ gtail), subst <+> newSubst), (hs, g, subst) : stack, fresh') acc
 
 ------------------------------------------
 --- Some relations for natural numbers ---
