@@ -26,7 +26,8 @@ class Term a where
   
 -- Free variables for a term; returns a sorted list
 fv :: T -> Set.Set Int
-fv = undefined
+fv (V a) = Set.singleton a
+fv (C _ vars)  = Set.unions (map fv vars)
 
 -- QuickCheck instantiation for formulas
 -- Don't know how to restrict the number of variables/constructors yet
@@ -77,12 +78,35 @@ class Substitutable a where
 
 -- Apply a substitution to a term
 instance Substitutable T where
-  apply s t = undefined
+  apply s t = case t of
+    V a -> case Term.lookup s a of
+      Nothing -> V a
+      Just t -> t
+    C cst vars -> C cst $ Data.List.map (apply s) vars
+
+-- Algorithm for finding directed cycles in a graph (in our case, circular bindings 
+-- in a substitution). The first argument is the vertex we're currently visiting,
+-- the second one is the state of the algorithm: the graph and the set of visited
+-- (but not finished) vertices. After we've finished visiting a vertex, it's deleted
+-- from the graph.
+visit :: Var -> (Subst, Set.Set Var) -> Maybe (Subst, Set.Set Var)
+visit a (subst, visited) =
+  if Set.member a visited then Nothing else
+  if Map.member a subst then
+    do
+      neighbours <- fv <$> (Term.lookup subst a)
+      (subst, visited) <- Set.fold (\x y -> y >>= (visit x)) (Just (subst, Set.insert a visited)) neighbours
+      Just (Map.delete a subst, visited)
+  else Just (subst, visited)
 
 -- Occurs check: checks if a substitution contains a circular
 -- binding    
 occurs :: Subst -> Bool
-occurs = undefined
+occurs subst = if Map.null subst then False else
+  let (a, t) = Map.elemAt 0 subst in
+  case visit a (subst, Set.empty) of
+    Nothing -> True
+    Just (subst, _) -> occurs subst
 
 -- Well-formedness: checks if a substitution does not contain
 -- circular bindings
@@ -94,11 +118,14 @@ wf = not . occurs
 infixl 6 <+>
 
 (<+>) :: Subst -> Subst -> Subst
-s <+> p = undefined
+s <+> p = Map.union (Map.map (apply p) s) p
 
 -- A condition for substitution composition s <+> p: dom (s) \cap ran (p) = \emptyset
 compWF :: Subst -> Subst -> Bool
-compWF s p = undefined
+compWF s p =
+  let dom = Set.fromList $ Map.keys s in
+  let ran = Set.unions $ Data.List.map fv (Map.elems p) in
+  Set.null $ Set.intersection dom ran
 
 -- A property: for all substitutions s, p and for all terms t
 --     (t s) p = t (s <+> p)

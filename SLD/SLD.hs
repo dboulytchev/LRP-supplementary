@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import qualified Control.Monad as Monad
 import qualified Control.Monad.State as St
 import Debug.Trace
+import Data.List
 
 -- Predicate names
 type Pred = Int
@@ -31,11 +32,23 @@ type P = [H]
 
 -- Unification for atomic formulas
 instance Unifiable A where
-  unify = undefined
+  unify s a1 a2 =
+    case s of
+      Nothing -> Nothing
+      Just s ->
+        let (p1, ts1) = a1 in
+        let (p2, ts2) = a2 in
+        if p1 == p2 && Data.List.length ts1 == Data.List.length ts2
+        then    
+          Data.List.foldl (\s' (t1'', t2'') -> unify s' t1'' t2'') (Just s) $ Data.List.zip ts1 ts2
+        else
+          Nothing
   
 -- Substitution application to atomic formulas
 instance Substitutable A where
-  apply = undefined
+  apply s a = 
+    let (p, ts) = a in
+    (p, Data.List.map (apply s) ts)
 
 -- State
 --   1. A triple
@@ -86,7 +99,19 @@ eval p g = evalRec p $ initState p g
 
 -- Recursive evalutor
 evalRec :: P -> State -> [Subst] 
-evalRec p ((hs, g, subst), stack, fresh) = undefined
+evalRec p ((hs, g, subst), stack, fresh) =
+  case g of
+    []     -> case stack of
+                []       -> [subst]
+                tr : trs -> subst : (evalRec p (tr, trs, fresh))
+    g : gs -> case hs of
+                []     -> case stack of
+                            []       -> []
+                            tr : trs -> evalRec p (tr, trs, fresh)
+                h : hs -> let (a :- bs, fresh') = rename h fresh in
+                          case unify (Just subst) a g of
+                            Nothing     -> evalRec p ((hs, g:gs, subst), stack, fresh)
+                            Just subst' -> evalRec p ((p, bs ++ gs, subst <+> subst'), (hs, g:gs, subst) : stack, fresh')
 
 ------------------------------------------
 --- Some relations for natural numbers ---
