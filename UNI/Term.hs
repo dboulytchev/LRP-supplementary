@@ -94,7 +94,7 @@ instance Substitutable T where
       go (w : ws)  !results = case w of
         Process (V v) ->
           case Term.lookup s v of
-            Just t' -> go ws (t' : results)
+            Just t' -> go (Process t' : ws) (results)
             Nothing -> go ws (V v : results)
         Process (C cst subs) ->
           go (map Process (reverse subs) ++ (Build cst (length subs) : ws))
