@@ -41,7 +41,7 @@ instance Alternative Stream where
   s1 <|> s2 = case s1 of
     Nil -> s2
     Mature a tl -> Mature a (s2 <|> tl)
-    Immature fs -> Immature (s1 <|> fs)
+    Immature fs -> Immature (s2 <|> fs)
   
 instance Monad Stream where
   s >>= f = case s of
