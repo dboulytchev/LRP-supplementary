@@ -24,19 +24,34 @@ pick n s =
            Immature fs   -> pick n fs  
 
 instance Applicative Stream where
-  pure     = undefined
-  _ <*> _  = undefined
+  pure     = \x -> Mature x Nil
+  fs <*> xs  = case fs of
+                Nil -> Nil
+                Mature fh ftl ->
+                  case xs of
+                    Nil -> Nil
+                    Mature xh xtl ->
+                      Mature (fh xh) (ftl <*> xtl)
+                    Immature ys ->
+                      fs <*> ys
+                Immature gs -> gs <*> xs
 
 instance Alternative Stream where
-  empty   = undefined
-  _ <|> _ = undefined
+  empty   = Nil
+  s1 <|> s2 = case s1 of
+    Nil -> s2
+    Mature a tl -> Mature a (s2 <|> tl)
+    Immature fs -> Immature (s2 <|> fs)
   
 instance Monad Stream where
-  _ >>= _ = undefined
+  s >>= f = case s of
+    Nil -> Nil
+    Mature a tl -> (f a) <|> (tl >>= f)
+    Immature fs  -> Immature (fs >>= f)
 
 instance MonadPlus Stream where
-  mzero = undefined
-  mplus = undefined
+  mzero = empty
+  mplus = (<|>)
   
 type State = (T.Subst, Int)
 type Goal  = State -> Stream State
@@ -44,23 +59,25 @@ type Goal  = State -> Stream State
 infix 4 ===
 
 (===) :: T.T -> T.T -> Goal
-t1 === t2 = undefined
+t1 === t2 = \(subst, n) -> case U.unify (Just subst) t1 t2 of
+      Nothing -> Nil
+      Just subst' -> pure (subst', n)
 
 infixr 3 &&&
 
 (&&&) :: Goal -> Goal -> Goal
-g1 &&& g2 = undefined
+g1 &&& g2 = \state -> (g1 state) >>= g2
 
 infixr 2 |||
 
 (|||) :: Goal -> Goal -> Goal
-g1 ||| g2 = undefined
+g1 ||| g2 = \state -> (g1 state) <|> (g2 state)
 
 call_fresh :: (T.T -> Goal) -> Goal
-call_fresh f = undefined
+call_fresh f = \(subst, n) -> f (T.V n) (subst, n + 1)
 
 delay :: Goal -> Goal
-delay f s = undefined
+delay f s = Immature (f s)
 
 --- Initial state & run
 initial = (T.empty, 1000)
